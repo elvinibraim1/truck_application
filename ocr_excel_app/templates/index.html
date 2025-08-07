@@ -1,0 +1,19 @@
+<!DOCTYPE html>
+<html lang="ro">
+<head>
+    <meta charset="UTF-8">
+    <title>OCR → Excel</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+</head>
+<body style="font-family: sans-serif; padding: 20px;">
+    <h2>Încarcă poze pentru extragere date</h2>
+    <form method="POST" enctype="multipart/form-data">
+        <input type="file" name="images" multiple required accept="image/*"><br><br>
+        <button type="submit">Generează Excel</button>
+    </form>
+</body>
+</html>
+<script>
+    document.querySelector('form').onsubmit = function() {
+        alert('Procesul de încărcare a început. Te rog să aștepți câteva momente.');
+    };
