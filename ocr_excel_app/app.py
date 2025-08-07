@@ -126,7 +126,11 @@ def save_to_excel(rows, path):
     wb = Workbook()
     ws = wb.active
     headers = [
-        "Data", "Brut", "Tara", "Net", "Marfa",
+        "Data",
+        "Brut (KG)",
+        "Tara (KG)",
+        "Net (KG)",
+        "Marfa",
         "Nr. Tractor", "Nr. Remorca",
         "Ora Intrare", "Ora Iesire",
         "Sofer", "Furnizor", "Beneficiar"
@@ -152,30 +156,58 @@ def save_to_excel(rows, path):
         cell.fill = header_fill
         cell.font = header_font
         cell.border = border
-        cell.alignment = alignment
 
-    # Stilizare și border pentru toate celulele + ajustare lățime
-    for row in ws.iter_rows(min_row=2, max_row=ws.max_row, min_col=1, max_col=ws.max_column):
-        for cell in row:
-            cell.border = border
-            cell.alignment = Alignment(wrap_text=True, vertical="center")
+    for line in lines:
+        line = line.strip()
 
-    # Ajustare lățime coloane după conținut
-    for col in ws.columns:
-        max_length = 0
-        column = col[0].column_letter
-        for cell in col:
-            try:
-                value = str(cell.value) if cell.value is not None else ""
-                if len(value) > max_length:
-                    max_length = len(value)
-            except:
-                pass
-        adjusted_width = max_length + 2
-        ws.column_dimensions[column].width = adjusted_width
+        if "MARFA" in line:
+            marfa = line.split(":")[-1].strip()
 
-    wb.save(path)
+        elif "NR. TRACTOR" in line:
+            match = re.search(r'TRACTOR:\s*([A-Z0-9\-]+)', line)
+            if match:
+                nr_tractor = match.group(1)
 
+        elif "NR. REMORCA" in line:
+            match = re.search(r'REMORCA:\s*([A-Z0-9\-]+)', line)
+            if match:
+                nr_remorca = match.group(1)
 
-if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000)
+        elif "BRUT" in line:
+            match = re.search(r'BRUT\s*[:\-]?\s*([\d.]+)', line)
+            if match:
+                brut = match.group(1)
+
+        elif "TARA" in line:
+            match = re.search(r'TARA\s*[:\-]?\s*([\d.]+)', line)
+            if match:
+                tara = match.group(1)
+
+        elif "NET" in line:
+            match = re.search(r'NET\s*[:\-]?\s*([\d.]+)', line)
+            if match:
+                net = match.group(1)
+
+        elif re.search(r'\b\d{2}\.\d{2}\.\d{4}\b', line):
+            match = re.search(r'(\d{2}\.\d{2}\.\d{4})', line)
+            if match:
+                data = match.group(1)
+
+        elif "ORA:" in line or "ORA" in line:
+            times = re.findall(r'\d{2}:\d{2}:\d{2}', line)
+            # Asigură-te că ambele coloane există mereu
+            if times:
+                ora_intrare = times[0]
+                if len(times) > 1:
+                    ora_iesire = times[1]
+                else:
+                    ora_iesire = ""
+
+        elif "SOFER" in line:
+            sofer = line.split(":")[-1].strip()
+
+        elif "FURNIZOR" in line:
+            furnizor = line.split(":")[-1].strip()
+
+        elif "BENEFICIAR" in line:
+            beneficiar = line.split(":")[-1].strip()
