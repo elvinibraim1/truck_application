@@ -5,6 +5,7 @@ import pytesseract
 from openpyxl import Workbook
 import uuid
 import re
+from datetime import datetime
 
 app = Flask(__name__)
 UPLOAD_FOLDER = "uploads"
@@ -28,7 +29,8 @@ def index():
             data = extract_data_from_text(text)
             data_rows.append(data)
 
-        filename = f"{uuid.uuid4().hex}.xlsx"
+        now = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+        filename = f"export_{now}.xlsx"
         excel_path = os.path.join(OUTPUT_FOLDER, filename)
         save_to_excel(data_rows, excel_path)
 
@@ -51,7 +53,7 @@ def extract_data_from_text(text):
     beneficiar = ""
 
     lines = text.split('\n')
-    for line in lines:
+    for idx, line in enumerate(lines):
         line = line.strip()
 
         if "MARFA" in line:
@@ -87,12 +89,21 @@ def extract_data_from_text(text):
             if match:
                 data = match.group(1)
 
-        elif "ORA:" in line or "ORA" in line:
+        # Robust: caută ora intrare/ieșire pe linii cu sau fără două ore
+        elif ("ORA INTRARE" in line or "ORA IN" in line or "INTRARE" in line) and not ora_intrare:
+            match = re.search(r'(\d{2}:\d{2}:\d{2})', line)
+            if match:
+                ora_intrare = match.group(1)
+        elif ("ORA IESIRE" in line or "ORA IE" in line or "IESIRE" in line) and not ora_iesire:
+            match = re.search(r'(\d{2}:\d{2}:\d{2})', line)
+            if match:
+                ora_iesire = match.group(1)
+        elif "ORA" in line or "ORA:" in line:
             times = re.findall(r'\d{2}:\d{2}:\d{2}', line)
             if times:
                 if not ora_intrare:
                     ora_intrare = times[0]
-                elif not ora_iesire and len(times) > 1:
+                if len(times) > 1 and not ora_iesire:
                     ora_iesire = times[1]
 
         elif "SOFER" in line:
@@ -156,58 +167,31 @@ def save_to_excel(rows, path):
         cell.fill = header_fill
         cell.font = header_font
         cell.border = border
+        cell.alignment = alignment
 
-    for line in lines:
-        line = line.strip()
+    # Stilizare și border pentru toate celulele + ajustare lățime
+    for row in ws.iter_rows(min_row=2, max_row=ws.max_row, min_col=1, max_col=ws.max_column):
+        for cell in row:
+            cell.border = border
+            cell.alignment = Alignment(wrap_text=True, vertical="center")
 
-        if "MARFA" in line:
-            marfa = line.split(":")[-1].strip()
+    # Ajustare lățime coloane după conținut
+    for col in ws.columns:
+        max_length = 0
+        column = col[0].column_letter
+        for cell in col:
+            try:
+                value = str(cell.value) if cell.value is not None else ""
+                if len(value) > max_length:
+                    max_length = len(value)
+            except:
+                pass
+        adjusted_width = max_length + 2
+        ws.column_dimensions[column].width = adjusted_width
 
-        elif "NR. TRACTOR" in line:
-            match = re.search(r'TRACTOR:\s*([A-Z0-9\-]+)', line)
-            if match:
-                nr_tractor = match.group(1)
+    wb.save(path)
+    
 
-        elif "NR. REMORCA" in line:
-            match = re.search(r'REMORCA:\s*([A-Z0-9\-]+)', line)
-            if match:
-                nr_remorca = match.group(1)
 
-        elif "BRUT" in line:
-            match = re.search(r'BRUT\s*[:\-]?\s*([\d.]+)', line)
-            if match:
-                brut = match.group(1)
-
-        elif "TARA" in line:
-            match = re.search(r'TARA\s*[:\-]?\s*([\d.]+)', line)
-            if match:
-                tara = match.group(1)
-
-        elif "NET" in line:
-            match = re.search(r'NET\s*[:\-]?\s*([\d.]+)', line)
-            if match:
-                net = match.group(1)
-
-        elif re.search(r'\b\d{2}\.\d{2}\.\d{4}\b', line):
-            match = re.search(r'(\d{2}\.\d{2}\.\d{4})', line)
-            if match:
-                data = match.group(1)
-
-        elif "ORA:" in line or "ORA" in line:
-            times = re.findall(r'\d{2}:\d{2}:\d{2}', line)
-            # Asigură-te că ambele coloane există mereu
-            if times:
-                ora_intrare = times[0]
-                if len(times) > 1:
-                    ora_iesire = times[1]
-                else:
-                    ora_iesire = ""
-
-        elif "SOFER" in line:
-            sofer = line.split(":")[-1].strip()
-
-        elif "FURNIZOR" in line:
-            furnizor = line.split(":")[-1].strip()
-
-        elif "BENEFICIAR" in line:
-            beneficiar = line.split(":")[-1].strip()
+if __name__ == '__main__':
+    app.run(host='0.0.0.0', port=5000)
